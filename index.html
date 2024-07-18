@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Translator Widget</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body class="bg-gray-900 md:flex flex-row items-center justify-center h-screen">
+  <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-lg w-full">
+    <div class="flex justify-between items-center mb-4 w-1/4">
+      <!-- <div class="items-center mt-4"> -->
+      <i class="far fa-copy text-gray-500 text-lg cursor-pointer hover:text-gray-400" id="copy-translated"
+        title="Copy Translated Text"></i>
+      <i class="fas fa-exchange-alt text-blue-400 text-xl cursor-pointer hover:text-blue-500" id="switch-lang"
+        title="Switch Language"></i>
+      <i class="fas fa-trash text-red-400 text-xl cursor-pointer hover:text-red-500" id="clear-btn" title="Clear"></i>
+      <!-- </div> -->
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Original Text Area -->
+      <div class="relative">
+        <label for="original-text" class="block text-gray-400">Original Text: <span id="detected-lang"
+            class="text-gray-500"></span></label>
+        <textarea id="original-text"
+          class="w-full mt-1 p-2 border rounded h-40 resize-none bg-gray-700 text-white"></textarea>
+      </div>
+
+      <!-- Translated Text Area -->
+      <div class="relative">
+        <label for="translated-text" class="block text-gray-400">Translated Text: <span id="translated-lang"
+            class="text-gray-500"></span></label>
+        <textarea id="translated-text"
+          class="w-full mt-1 p-2 border rounded h-40 resize-none bg-gray-700 text-white"></textarea>
+
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    let debounceTimer;
+    let sourceLang = 'auto'; // Set source language to auto-detect
+    let targetLang = 'en'; // Default target language
+    let detectedLang = '';
+    let languageCodes = {};
+
+    // Fetch language codes
+    $.getJSON("https://gist.githubusercontent.com/josantonius/b455e315bc7f790d14b136d61d9ae469/raw/1a3babcb42fbfc364e648aeba6968ae20c381bf8/language-codes.json", function (data) {
+      languageCodes = data;
+    });
+
+    // Function to translate text and display detected language
+    function translateText() {
+      const text = $('#original-text').val();
+      if (text.trim() === '') return;
+
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+
+      $.getJSON(url, function (data) {
+        const translation = data[0][0][0];
+        detectedLang = data[2];
+        const detectedLangName = languageCodes[detectedLang] || detectedLang;
+        const targetLangName = languageCodes[targetLang] || targetLang;
+        $('#translated-text').val(translation);
+        $('#detected-lang').text(detectedLangName);
+        $('#translated-lang').text(targetLangName);
+      });
+    }
+
+    // Detect changes in the original text area and debounce the translation
+    $('#original-text').on('input', function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(translateText, 800);
+    });
+
+    // Copy text from the translated text area
+    $('#copy-translated').on('click', function () {
+      const translatedText = $('#translated-text');
+      translatedText.select();
+      document.execCommand('copy');
+    });
+
+    // Switch languages
+    $('#switch-lang').on('click', function () {
+      [sourceLang, targetLang] = [targetLang, detectedLang];
+
+      const originalText = $('#original-text').val();
+      const translatedText = $('#translated-text').val();
+
+      $('#original-text').val(translatedText);
+      $('#translated-text').val(originalText);
+
+      translateText();
+    });
+
+    // Clear text areas and reset languages
+    $('#clear-btn').on('click', function () {
+      $('#original-text').val('');
+      $('#translated-text').val('');
+      $('#detected-lang').text('');
+      $('#translated-lang').text('');
+      sourceLang = 'auto';
+      targetLang = 'en';
+    });
+  </script>
+</body>
+
+</html>
