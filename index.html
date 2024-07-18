@@ -38,35 +38,24 @@
 <body class="bg-gray-900 sm:flex flex-row items-center justify-center h-screen scrollbar-rail scroller ">
   <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-lg w-full">
     <div class="flex justify-between items-center mb-4 w-1/4">
-      <!-- <div class="items-center mt-4"> -->
-      <i class="far fa-copy text-gray-500 text-lg cursor-pointer hover:text-gray-400" id="copy-translated"
-        title="Copy Translated Text"></i>
-      <i class="fas fa-exchange-alt text-blue-400 text-xl cursor-pointer hover:text-blue-500" id="switch-lang"
-        title="Switch Language"></i>
+      <i class="far fa-copy text-gray-500 text-lg cursor-pointer hover:text-gray-400" id="copy-translated" title="Copy Translated Text"></i>
+      <i class="fas fa-exchange-alt text-blue-400 text-xl cursor-pointer hover:text-blue-500" id="switch-lang" title="Switch Language"></i>
       <i class="fas fa-trash text-red-400 text-xl cursor-pointer hover:text-red-500" id="clear-btn" title="Clear"></i>
-      <!-- </div> -->
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <!-- Original Text Area -->
       <div class="relative">
-        <label for="original-text" class="block text-gray-400">Original Text: <span id="detected-lang"
-            class="text-gray-500"></span></label>
-        <textarea id="original-text"
-          class="scrollbar-inner scroller w-full mt-1 p-2 border rounded h-40 resize-none bg-gray-700 text-white"></textarea>
+        <label for="original-text" class="block text-gray-400">Original Text: <span id="detected-lang" class="text-gray-500"></span></label>
+        <textarea id="original-text" class="scrollbar-inner scroller w-full mt-1 p-2 border rounded h-40 resize-none bg-gray-700 text-white"></textarea>
       </div>
 
       <!-- Translated Text Area -->
       <div class="relative">
-        <label for="translated-text" class="block text-gray-400">Translated Text: <span id="translated-lang"
-            class="text-gray-500"></span></label>
-        <textarea id="translated-text"
-          class="scrollbar-inner scroller w-full mt-1 p-2 border rounded h-40 resize-none bg-gray-700 text-white"></textarea>
-
+        <label for="translated-text" class="block text-gray-400">Translated Text: <span id="translated-lang" class="text-gray-500"></span></label>
+        <textarea id="translated-text" class="scrollbar-inner scroller w-full mt-1 p-2 border rounded h-40 resize-none bg-gray-700 text-white"></textarea>
       </div>
     </div>
-
-
   </div>
 
   <!-- Scripts -->
@@ -80,30 +69,45 @@
     $(document).ready(function () {
       document.querySelectorAll('.scroller').forEach(el => {
         new SimpleBar(el);
-      })
-    })
+      });
+    });
 
     // Fetch language codes
     $.getJSON("https://gist.githubusercontent.com/josantonius/b455e315bc7f790d14b136d61d9ae469/raw/1a3babcb42fbfc364e648aeba6968ae20c381bf8/language-codes.json", function (data) {
       languageCodes = data;
     });
 
+    // Function to split text by sentences using Intl.Segmenter
+    function splitBySentences(text) {
+      if (!("Segmenter" in Intl)) {
+        // Fallback if Segmenter is not supported
+        return text.split(/(?<=[.!?])\s+/);
+      }
+
+      const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+      const segments = segmenter.segment(text);
+      return Array.from(segments, segment => segment.segment);
+    }
+
     // Function to translate text and display detected language
-    function translateText() {
+    async function translateText() {
       const text = $('#original-text').val();
       if (text.trim() === '') return;
 
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
-
-      $.getJSON(url, function (data) {
-        const translation = data[0][0][0];
-        detectedLang = data[2];
-        const detectedLangName = languageCodes[detectedLang] || detectedLang;
-        const targetLangName = languageCodes[targetLang] || targetLang;
-        $('#translated-text').val(translation);
-        $('#detected-lang').text(detectedLangName);
-        $('#translated-lang').text(targetLangName);
+      const sentences = splitBySentences(text).map(sentence => encodeURIComponent(sentence.trim()));
+      const promises = sentences.map(sentence => {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${sentence}`;
+        return $.getJSON(url);
       });
+
+      const results = await Promise.all(promises);
+      const translations = results.map(data => data[0][0][0]).join(' ');
+      detectedLang = results[0][2];
+      const detectedLangName = languageCodes[detectedLang] || detectedLang;
+      const targetLangName = languageCodes[targetLang] || targetLang;
+      $('#translated-text').val(translations);
+      $('#detected-lang').text(detectedLangName);
+      $('#translated-lang').text(targetLangName);
     }
 
     // Detect changes in the original text area and debounce the translation
